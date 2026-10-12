@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Interactive circle of fifths: turn the disc to pick a key, pick a mode, and tap chords to build a progression.">
+<style>
+/* Base reset (the artifact viewer used to provide this) */
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>Chord Mode Wheel</title>
+<style>
+:root{
+  --bg:#E3E4E8; --panel:#F4F4F6; --ink:#1C1C20; --muted:#5D5F67; --line:#C9CAD0;
+  --bezel:#2A2829; --bezel-ink:#FFFFFF; --bezel-dim:#9E9A9B;
+  --ring1:#F1F1F3; --ring2:#E3E3E6; --ring3:#D3D4D8; --ringline:#9C9DA4;
+  --hub:#2C2A2B; --hub-ink:#FFFFFF; --hub-dim:#A9A5A6;
+  --frame:rgba(17,17,19,.75); --frame-fill:rgba(255,255,255,.55);
+  --btn:#E6E7EB; --btn-hover:#DADBE0; --btn-on:#1C1C20; --btn-on-ink:#FFFFFF;
+  --chip:#FFFFFF; --focus:#2150A8;
+  --halo:rgba(255,255,255,.92); --dom:#111113; --dom-ink:#FFFFFF; --badge-line:rgba(0,0,0,.3); --badge-shadow:rgba(0,0,0,.22);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111113; --panel:#1A1B1E; --ink:#ECECEF; --muted:#9C9EA6; --line:#2F3136;
+    --bezel:#050506; --bezel-ink:#FFFFFF; --bezel-dim:#8F8B8C;
+    --ring1:#3A3B41; --ring2:#303137; --ring3:#27282D; --ringline:#50525A;
+    --hub:#0A0A0B; --hub-ink:#FFFFFF; --hub-dim:#8E8A8B;
+    --frame:rgba(236,236,240,.62); --frame-fill:rgba(255,255,255,.07);
+    --btn:#26272B; --btn-hover:#2F3035; --btn-on:#ECECEF; --btn-on-ink:#111113;
+    --chip:#232428; --focus:#7FA6F0;
+    --halo:rgba(0,0,0,.8); --dom:#F4F4F6; --dom-ink:#111113; --badge-line:rgba(255,255,255,.4); --badge-shadow:rgba(0,0,0,.55);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111113; --panel:#1A1B1E; --ink:#ECECEF; --muted:#9C9EA6; --line:#2F3136;
+  --bezel:#050506; --bezel-ink:#FFFFFF; --bezel-dim:#8F8B8C;
+  --ring1:#3A3B41; --ring2:#303137; --ring3:#27282D; --ringline:#50525A;
+  --hub:#0A0A0B; --hub-ink:#FFFFFF; --hub-dim:#8E8A8B;
+  --frame:rgba(236,236,240,.62); --frame-fill:rgba(255,255,255,.07);
+  --btn:#26272B; --btn-hover:#2F3035; --btn-on:#ECECEF; --btn-on-ink:#111113;
+  --chip:#232428; --focus:#7FA6F0;
+  --halo:rgba(0,0,0,.8); --dom:#F4F4F6; --dom-ink:#111113; --badge-line:rgba(255,255,255,.4); --badge-shadow:rgba(0,0,0,.55);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:system-ui, -apple-system, sans-serif;font-size:15px;line-height:1.45;padding-inline:16px;padding-block:24px 40px}
+.app{max-width:1800px;margin:0 auto;display:grid;gap:24px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){.app{grid-template-columns:minmax(0,1.5fr) minmax(360px,1fr);align-items:start}.wheel-col{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px)}}
+header.top{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+header.top h1{font-size:22px;margin:0;font-weight:600}
+header.top p{margin:0;color:var(--muted)}
+.wheel-col{min-width:0;display:flex;flex-direction:column;align-items:center;gap:12px}
+#wheel{width:100%;max-width:max(320px, calc(100dvh - 90px));aspect-ratio:1;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;border-radius:50%}
+#wheel.grabbing{cursor:grabbing}
+#wheel:focus-visible{outline:3px solid var(--focus);outline-offset:4px}
+.hint{color:var(--muted);font-size:14px;text-align:center;margin:0;text-wrap:balance}
+.hint kbd{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:4px;padding:0 4px;background:var(--panel);color:var(--ink)}
+
+/* wheel internals */
+.cell{transition:opacity .25s}
+.cell.out{opacity:.45}
+.cell .num{font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--halo);stroke-width:5px;stroke-linejoin:round}
+.cell .lt{paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:2.5px;stroke-linejoin:round}
+.cell .dk{paint-order:stroke;stroke:rgba(255,255,255,.55);stroke-width:2.5px;stroke-linejoin:round}
+.cell .bname,.cell .dot text{font-weight:700}
+.dom-arrow{fill:none;stroke:var(--dom);stroke-width:3.5;stroke-linecap:round}
+.dom-halo{fill:none;stroke:var(--halo);stroke-width:9;stroke-linecap:round}
+.keymark{fill:var(--frame-fill);stroke:var(--frame);stroke-width:2.5}
+.dom-ring{fill:none;stroke:var(--dom);stroke-width:3.5}
+.dashed{stroke-dasharray:9 7}
+.dom-pill rect{fill:var(--dom)}
+.dom-pill text{fill:var(--dom-ink);font-weight:700}
+.cell .pop{transform-box:fill-box;transform-origin:center}
+.cell.hit .pop{animation:pop .45s ease-out}
+.cell.now .pop{animation:pulse .9s ease-in-out infinite alternate}
+@keyframes pop{0%{transform:scale(1)}30%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.12)}}
+.mode-label{font-weight:700;font-size:30px;fill:var(--bezel-dim);cursor:pointer;transition:fill .2s}
+.mode-label.on{fill:var(--bezel-ink)}
+.hub-t{font-weight:600;fill:var(--hub-ink)}
+.hub-m{font-weight:600;fill:var(--hub-dim)}
+@media (prefers-reduced-motion:reduce){.cell.hit .pop,.cell.now .pop{animation:none}}
+
+/* panel */
+.panel{display:flex;flex-direction:column;gap:16px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card > *{margin:0}
+.eyebrow{font-size:15px;font-weight:600;color:var(--ink)}
+.keyhead h2{font-size:26px;line-height:1.15;font-weight:600}
+.keyhead .eyebrow{color:var(--muted);font-size:14px}
+.keyhead .head{display:flex;flex-direction:column;gap:4px}
+.sub{color:var(--muted)}
+.scale{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.scale .deg{font-size:13px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;font-weight:700}
+.scale .n{display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:transparent;padding:4px 0;border-radius:8px;cursor:pointer}
+.scale .n:hover{background:var(--btn)}
+.nb{display:inline-flex;align-items:center;justify-content:center;font-weight:700;line-height:1;flex:none}
+.nb.sq{border-radius:3px}.nb.ci{border-radius:50%}
+.scale .nb{width:36px;height:36px;font-size:15px}
+.controls{gap:16px}
+.group{display:flex;flex-direction:column;gap:8px}
+.row-label{font-size:14px;font-weight:600;color:var(--muted);margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button,select,input{font:inherit;color:inherit}
+svg text{font-family:inherit}
+.pill{border:0;background:var(--btn);color:var(--ink);border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:600;font-size:14px;line-height:1.2;display:inline-flex;align-items:center;gap:8px}
+.pill:hover{background:var(--btn-hover)}
+.pill[aria-pressed="true"]{background:var(--btn-on);color:var(--btn-on-ink)}
+.pill:focus-visible,.chip-main:focus-visible,.chip-x:focus-visible,.ccard:focus-visible,.scale .n:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.keys{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.keys .pill{justify-content:center;padding:8px 4px}
+.sw{width:8px;height:8px;display:inline-block;flex:none}
+.sw.ci{border-radius:50%}.sw.sq{border-radius:1px}
+.modes .pill{flex-direction:column;align-items:flex-start;gap:2px}
+.modes .pill small{font-weight:400;font-size:12px}
+.seg{display:inline-flex;flex-wrap:wrap;align-self:flex-start;background:var(--btn);border-radius:8px;padding:4px;gap:4px}
+.seg .pill{background:transparent;padding:6px 12px}
+.seg .pill[aria-pressed="true"]{background:var(--btn-on)}
+.chords{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.ccard{border:1px solid var(--line);background:var(--chip);border-radius:10px;padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;min-width:0}
+.ccard:hover{border-color:var(--muted)}
+.ccard .rn{font-weight:600;font-size:16px;line-height:1.2}
+.ccard .nb{width:40px;height:40px;font-size:15px;margin-block:4px}
+.ccard .nm{font-weight:700;font-size:14px;white-space:nowrap}
+.ccard .tn,.ccard .to{font-size:12px;color:var(--muted);white-space:nowrap}
+.prog-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tempo{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tempo input{width:110px;accent-color:var(--ink)}
+.tempo select{font-size:14px;color:var(--ink);background:var(--btn);border:0;border-radius:8px;padding:8px}
+.spacer{flex:1}
+.prog{display:flex;flex-wrap:wrap;gap:8px;min-height:76px;align-items:flex-start}
+.empty{color:var(--muted);font-size:14px;margin:0;align-self:center}
+.chip{position:relative;display:flex;border:1px solid var(--line);background:var(--chip);border-radius:10px;overflow:hidden}
+.chip.playing{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+.chip-main{border:0;background:transparent;padding:8px 8px 8px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;cursor:grab;min-width:64px;touch-action:none}
+.chip-main .rn{font-weight:600;font-size:15px;line-height:1.2}
+.chip-main .nm{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.chip-main .nb{width:24px;height:24px;font-size:11px}
+.chip-main .tag{font-size:12px;color:var(--muted)}
+.chip-main .fn{font-weight:700;color:var(--ink)}
+.chip.placeholder{opacity:.3}
+.chip.ghost{position:fixed;z-index:10;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.25);margin:0}
+.chip-x{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:0 12px;font-size:18px;align-self:stretch}
+.chip-x:hover{color:var(--ink);background:var(--btn)}
+.note{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Chord Mode Wheel</h1>
+    <p>Circle of fifths with a movable mode frame.</p>
+  </header>
+
+  <div class="wheel-col">
+    <svg id="wheel" viewBox="-500 -500 1000 1000" tabindex="0" role="application" aria-label="Circle of fifths wheel. Left and right arrows change key, up and down arrows change mode.">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--dom)"/></marker>
+      </defs>
+      <circle r="499" fill="var(--bezel)"/>
+      <circle r="438" fill="none" stroke="var(--bezel-dim)" stroke-opacity=".35" stroke-width="2"/>
+      <g id="modeLabels"></g>
+      <circle r="432" fill="var(--ring3)"/>
+      <circle r="330" fill="var(--ring2)"/>
+      <circle r="220" fill="var(--ring1)"/>
+      <g id="disk"></g>
+      <circle r="330" fill="none" stroke="var(--ringline)" stroke-width="1.5"/>
+      <circle r="220" fill="none" stroke="var(--ringline)" stroke-width="1.5"/>
+      <g id="frameFill"></g>
+      <g id="frameStroke" pointer-events="none"></g>
+      <g id="cells"></g>
+      <g id="domLayer" pointer-events="none"></g>
+      <g id="hub">
+        <circle r="90" fill="var(--hub)"/>
+        <text id="hubT" class="hub-t" y="8" text-anchor="middle" font-size="44">C</text>
+        <text id="hubM" class="hub-m" y="38" text-anchor="middle" font-size="14">Ionian</text>
+      </g>
+    </svg>
+    <p class="hint">Drag inside: key · Drag rim: mode · Tap: play · Double-tap: add · <kbd>←</kbd><kbd>→</kbd> key · <kbd>↑</kbd><kbd>↓</kbd> mode</p>
+  </div>
+
+  <div class="panel">
+    <section class="card keyhead">
+      <div class="head">
+        <h2 id="title">C Ionian</h2>
+        <p class="sub" id="sub"></p>
+      </div>
+      <div class="scale" id="scale"></div>
+    </section>
+
+    <section class="card controls">
+      <div class="group">
+        <p class="row-label">Tonic</p>
+        <div class="keys" id="keys"></div>
+      </div>
+      <div class="group">
+        <p class="row-label">Scale</p>
+        <div class="seg" id="fam">
+          <button class="pill" data-fam="major">Major</button>
+          <button class="pill" data-fam="harm">Harmonic minor</button>
+          <button class="pill" data-fam="mel">Melodic minor</button>
+        </div>
+      </div>
+      <div class="group">
+        <p class="row-label">Mode</p>
+        <div class="btns modes" id="modes"></div>
+      </div>
+      <div class="group">
+        <p class="row-label">Chord tones</p>
+        <div class="seg" id="sev">
+          <button class="pill" id="sev-off" data-v="0">Triads</button>
+          <button class="pill" id="sev-on" data-v="1">Sevenths</button>
+        </div>
+      </div>
+      <div class="group">
+        <p class="row-label">Dominants</p>
+        <div class="seg" id="domseg">
+          <button class="pill" id="dom-off" data-dom="0">Hide</button>
+          <button class="pill" id="dom-on" data-dom="1">Show</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Chords in key</p>
+      <div class="chords" id="chords"></div>
+      <p class="note">Dimmed chords on the wheel are borrowed.</p>
+    </section>
+
+    <section class="card" id="domCard" hidden>
+      <p class="eyebrow">Dominants</p>
+      <p class="dom-focus" id="domFocus"></p>
+      <div class="chords" id="domList"></div>
+      <p class="note">Solid arrow: its dominant. Dashed: where it resolves.</p>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">Progression</p>
+      <div class="prog-bar">
+        <button class="pill" id="play" aria-pressed="false">▶ Play</button>
+        <button class="pill" id="loop" aria-pressed="true">Loop</button>
+        <label class="tempo" for="synth">Sound <select id="synth"></select></label>
+        <label class="tempo" for="bpm">Tempo <input type="range" id="bpm" min="50" max="180" step="2" value="96"> <span id="bpmv">96</span> BPM</label>
+        <span class="spacer"></span>
+        <button class="pill" id="clear">Clear</button>
+      </div>
+      <div class="prog" id="prog"></div>
+      <p class="note">Drag to reorder. Turning the disc transposes it.</p>
+      <div class="group" id="presetGroup">
+        <p class="row-label" id="presetLabel">Common in Ionian</p>
+        <div class="btns" id="presets"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+(() => {
+const mod = (n, m) => ((n % m) + m) % m;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+// Pitch-class colours, loosely after the printed wheel. Shape follows the whole-tone set.
+const PC = [
+  ['#D7263D','#fff'], ['#17A589','#fff'], ['#EE7B22','#fff'], ['#2150A8','#fff'],
+  ['#F2D72B','#1a1a1a'], ['#B32B8F','#fff'], ['#6DBE45','#1a1a1a'], ['#EF4B3A','#fff'],
+  ['#2EA3E0','#fff'], ['#F4A71D','#1a1a1a'], ['#6F3BA0','#fff'], ['#A6D13A','#1a1a1a']
+];
+const shapeOf = pc => pc % 2 === 0 ? 'sq' : 'ci';
+
+// Scale families. `parent` lists the parent scale's notes by degree, as steps on the
+// line of fifths from its first note (C = 0, G = 1, F = -1 ...). Each mode starts on one degree.
+const FAMILIES = {
+  major: { name: 'Major', parent: [0, 2, 4, -1, 1, 3, 5], modes: [
+    { name: 'Ionian', desc: 'Major', presets: ['I V vi IV', 'I vi IV V', 'ii V I', 'I bVI bVII I'] },
+    { name: 'Dorian', desc: 'Minor, ♮6', presets: ['i IV', 'i bIII bVII IV', 'i ii bIII ii'] },
+    { name: 'Phrygian', desc: 'Minor, ♭2', presets: ['i bII', 'i bII bIII bII', 'i iv bII i'] },
+    { name: 'Lydian', desc: 'Major, ♯4', presets: ['I II', 'I II iii II', 'I V vi II'] },
+    { name: 'Mixolydian', desc: 'Major, ♭7', presets: ['I bVII IV I', 'I bVII', 'I v IV I'] },
+    { name: 'Aeolian', desc: 'Natural minor', presets: ['i bVI bIII bVII', 'i bVII bVI bVII', 'i iv v i', 'i bVI bVII V'] },
+    { name: 'Locrian', desc: 'Diminished, ♭2 ♭5', presets: ['i° bII', 'i° bV bII', 'i° biii bII i°'] },
+  ] },
+  harm: { name: 'Harmonic minor', parent: [0, 2, -3, -1, 1, -4, 5], modes: [
+    { name: 'Harmonic minor', short: 'Harm. minor', desc: 'Minor, ♮7', presets: ['i iv V i', 'i bVI V i', 'i ii° V i'] },
+    { name: 'Locrian ♮6', desc: 'Diminished, ♮6', presets: [] },
+    { name: 'Ionian ♯5', desc: 'Major, ♯5', presets: ['I+ IV I+', 'I+ vi ii III'] },
+    { name: 'Dorian ♯4', desc: 'Minor, ♯4', presets: ['i II i', 'i II bIII II'] },
+    { name: 'Phrygian dominant', short: 'Phryg. dom.', desc: 'Major, ♭2 ♭6', presets: ['I bII I', 'I bvii bII I', 'iv bII I'] },
+    { name: 'Lydian ♯2', desc: 'Major, ♯2 ♯4', presets: ['I VII I', 'I iii VII I'] },
+    { name: 'Altered 𝄫7', desc: 'Diminished, 𝄫7', presets: [] },
+  ] },
+  mel: { name: 'Melodic minor', parent: [0, 2, -3, -1, 1, 3, 5], modes: [
+    { name: 'Melodic minor', short: 'Mel. minor', desc: 'Minor, ♮6 ♮7', presets: ['i IV V i', 'i ii V i', 'i IV i'] },
+    { name: 'Dorian ♭2', desc: 'Minor, ♭2', presets: ['i bvii i', 'i bII+ i'] },
+    { name: 'Lydian augmented', short: 'Lydian aug.', desc: 'Major, ♯4 ♯5', presets: ['I+ II I+'] },
+    { name: 'Lydian dominant', short: 'Lydian dom.', desc: 'Major, ♯4 ♭7', presets: ['I II I', 'I II v I'] },
+    { name: 'Mixolydian ♭6', short: 'Mixo ♭6', desc: 'Major, ♭6 ♭7', presets: ['I iv I', 'I bVII iv I', 'I v iv I'] },
+    { name: 'Locrian ♮2', desc: 'Diminished, ♮2', presets: ['i° bVI bVII i°'] },
+    { name: 'Altered', desc: 'Diminished, ♭4', presets: [] },
+  ] },
+};
+// Each mode's notes relative to its own tonic. Modes are placed on the rim from brightest
+// (most sharps, rim slot 1) to darkest (slot -5); for the major family that is Lydian … Locrian.
+for (const fam of Object.values(FAMILIES)) {
+  const par = fam.parent;
+  fam.modes.forEach((m, i) => {
+    m.deg = i + 1;
+    m.short = m.short || m.name;
+    m.sc = par.map((_, j) => par[(i + j) % 7] - par[i]);
+  });
+  [...fam.modes].sort((a, b) => b.sc.reduce((x, y) => x + y) - a.sc.reduce((x, y) => x + y))
+    .forEach((m, rank) => { m.k = 1 - rank; });
+}
+const modeOf = (fam = S.fam, k = S.k) => FAMILIES[fam].modes.find(m => m.k === k);
+const curMode = () => modeOf();
+// ---- Spelling on the line of fifths (C = 0, G = 1, F = -1 ...) ----
+const accStr = a => a === 0 ? '' : a === 1 ? '♯' : a === 2 ? '𝄪' : a === -1 ? '♭' : a === -2 ? '𝄫' : (a > 0 ? '♯'.repeat(a) : '♭'.repeat(-a));
+const noteName = f => 'FCGDAEB'[mod(f + 1, 7)] + accStr(Math.floor((f + 1) / 7));
+const pcOf = f => mod(f * 7, 12);
+const DEG = [1, 5, 2, 6, 3, 7, 4];
+const degreeOf = d => ({ base: DEG[mod(d, 7)], acc: Math.floor((d + 1) / 7) });
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+const OFF = { M: 0, a: 0, m: 3, d: 5 };     // root offset from the major-ring position (augmented chords share the major ring)
+const DEG_TO_D = { 1: 0, 2: 2, 3: 4, 4: -1, 5: 1, 6: 3, 7: 5 };
+
+// Spell the tonic so the mode's notes need as few sharps or flats as possible.
+function tonicFifth(t, m = curMode()) {
+  const c = m.sc.reduce((x, y) => x + y) / 7 - 2;
+  const a = t, b = t - 12;
+  const sa = Math.abs(a + c), sb = Math.abs(b + c);
+  if (Math.abs(sa - sb) > 1e-9) return sa < sb ? a : b;
+  return c <= -2 ? a : b;
+}
+const rel = (j, t) => mod(j - t + 6, 12) - 6;
+
+function numeral(d, q) {
+  const { base, acc } = degreeOf(d);
+  let r = ROMAN[base];
+  if (q === 'm' || q === 'd') r = r.toLowerCase();
+  return accStr(acc) + r + (q === 'd' ? '°' : q === 'a' ? '+' : '');
+}
+
+// The current key's notes and its seven chords, built by stacking every other scale note.
+const TRIAD = { M: [0, 4, 1], m: [0, -3, 1], d: [0, -3, -6], a: [0, 4, 8] };
+const TRIAD_SUFFIX = { M: '', m: 'm', d: '°', a: '+' };
+const SEVENTH = { 'M5': 'maj7', 'M-2': '7', 'm-2': 'm7', 'm5': 'm(maj7)', 'd-2': 'ø7', 'd-9': '°7', 'a5': 'maj7♯5', 'a-2': '7♯5' };
+let infoKey = '', infoVal = null;
+function info() {
+  const key = S.fam + S.k + ':' + S.t;
+  if (key === infoKey) return infoVal;
+  const m = curMode(), sc = m.sc, f = tonicFifth(S.t, m);
+  const chords = sc.map((r, i) => {
+    const th = sc[(i + 2) % 7] - r, fi = sc[(i + 4) % 7] - r, se = sc[(i + 6) % 7] - r;
+    const q = th === 4 ? (fi === 8 ? 'a' : 'M') : (fi === -6 ? 'd' : 'm');
+    return { d: r, q, sev: se };
+  });
+  const byPc = new Map(chords.map(c => [mod(c.d, 12) + c.q, c]));
+  infoKey = key;
+  return (infoVal = { m, sc, f, chords, byPc, tonicQ: chords[0].q });
+}
+
+function chord(d, q, dom = false) {
+  const I = info();
+  const hit = I.byPc.get(mod(d, 12) + q);
+  if (hit) d = hit.d;                          // spell it the way the scale does
+  const F = I.f + d;
+  const forceDom = dom && q === 'M';
+  const sev = forceDom ? -2 : hit ? hit.sev : -2;
+  const tones = TRIAD[q].map(x => F + x);
+  if (S.sev || forceDom) tones.push(F + sev);
+  const root = noteName(F);
+  const triad = root + TRIAD_SUFFIX[q];
+  return {
+    d, q, p: d - OFF[q], inKey: !!hit, root, rootPc: pcOf(F), triad,
+    name: S.sev || forceDom ? root + (SEVENTH[q + sev] || '7') : triad, dom: forceDom,
+    num: numeral(d, q),
+    notes: tones.map(x => ({ name: noteName(x), pc: pcOf(x) })),
+  };
+}
+
+function parseNumeral(s) {
+  const m = s.replace('♭', 'b').replace('♯', '#').match(/^(b|#)?(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii|i)(°|\+)?$/);
+  if (!m) return null;
+  const idx = ROMAN.indexOf(m[2].toUpperCase());
+  const d = DEG_TO_D[idx] + (m[1] === 'b' ? -7 : m[1] === '#' ? 7 : 0);
+  const q = m[3] === '°' ? 'd' : m[3] === '+' ? 'a' : (m[2] === m[2].toUpperCase() ? 'M' : 'm');
+  return { d, q };
+}
+const prettyNum = s => s.replace(/^b/, '♭').replace(/^#/, '♯');
+
+// ---- State ----
+const S = { t: 0, k: 0, fam: 'major', sev: true, bpm: 96, loop: true, synth: 'piano', dom: false,
+  prog: ['I', 'V', 'vi', 'IV'].map(parseNumeral) };
+try {
+  const saved = JSON.parse(localStorage.getItem('mode-wheel') || 'null');
+  if (saved && typeof saved === 'object') {
+    if (Number.isInteger(saved.t)) S.t = mod(saved.t, 12);
+    if (Number.isInteger(saved.k)) S.k = clamp(saved.k, -5, 1);
+    if (FAMILIES[saved.fam]) S.fam = saved.fam;
+    if (typeof saved.sev === 'boolean') S.sev = saved.sev;
+    if (Number.isFinite(saved.bpm)) S.bpm = clamp(saved.bpm, 50, 180);
+    if (typeof saved.loop === 'boolean') S.loop = saved.loop;
+    if (typeof saved.synth === 'string') S.synth = saved.synth;
+    if (typeof saved.dom === 'boolean') S.dom = saved.dom;
+    if (Array.isArray(saved.prog)) S.prog = saved.prog.filter(x => x && Number.isInteger(x.d) && 'Mmda'.includes(x.q)).map(x => x.dom ? { d: x.d, q: x.q, dom: true } : { d: x.d, q: x.q }).slice(0, 16);
+  }
+} catch (e) {}
+function save() {
+  try { localStorage.setItem('mode-wheel', JSON.stringify(S)); } catch (e) {}
+}
+
+// ---- Wheel geometry ----
+const svg = document.getElementById('wheel');
+const P = (r, a) => [r * Math.sin(a * Math.PI / 180), -r * Math.cos(a * Math.PI / 180)];
+const pt = (r, a) => P(r, a).map(v => v.toFixed(2)).join(' ');
+const MID = { M: 157, m: 276, d: 382 };
+
+// Radial dividers (rotate with the disc)
+const disk = document.getElementById('disk');
+for (let j = 0; j < 12; j++) {
+  const [x1, y1] = P(90, j * 30 + 15), [x2, y2] = P(432, j * 30 + 15);
+  const l = document.createElementNS(SVGNS, 'line');
+  l.setAttribute('x1', x1); l.setAttribute('y1', y1); l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+  l.setAttribute('stroke', 'var(--ringline)'); l.setAttribute('stroke-width', '1.5');
+  disk.appendChild(l);
+}
+
+// Mode window frame
+const framePath = (() => {
+  const a = 45, b = 15, r0 = 94, r1 = 330, r2 = 428;
+  return `M ${pt(r0, -a)} A ${r0} ${r0} 0 0 1 ${pt(r0, a)} L ${pt(r1, a)} A ${r1} ${r1} 0 0 0 ${pt(r1, b)} ` +
+         `L ${pt(r2, b)} A ${r2} ${r2} 0 0 0 ${pt(r2, -b)} L ${pt(r1, -b)} A ${r1} ${r1} 0 0 0 ${pt(r1, -a)} Z`;
+})();
+const frameFill = document.getElementById('frameFill');
+const frameStroke = document.getElementById('frameStroke');
+frameFill.innerHTML = `<path d="${framePath}" fill="var(--frame-fill)"/>`;
+frameStroke.innerHTML = `<path d="${framePath}" fill="none" stroke="var(--frame)" stroke-width="3.5" stroke-linejoin="round"/>`;
+
+// Mode labels on the rim (fixed)
+const labelsG = document.getElementById('modeLabels');
+const rimText = document.createElementNS(SVGNS, 'g');
+labelsG.appendChild(rimText);
+function buildRim() {
+  rimText.innerHTML = FAMILIES[S.fam].modes.map(m => {
+    const a = m.k * 30, span = 42;
+    const id = 'mp' + (m.k + 5);
+    const bottom = Math.abs(a) > 100;
+    const d = bottom
+      ? `M ${pt(484, a + span)} A 484 484 0 0 0 ${pt(484, a - span)}`
+      : `M ${pt(458, a - span)} A 458 458 0 0 1 ${pt(458, a + span)}`;
+    const fs = Math.min(30, Math.round(400 / [...m.short].length));
+    return `<path id="${id}" d="${d}" fill="none"/>` +
+      `<text class="mode-label" data-k="${m.k}" style="font-size:${fs}px"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${m.short}</textPath></text>`;
+  }).join('');
+  const major = S.fam === 'major';
+  frameFill.style.display = major ? '' : 'none';
+  frameStroke.style.display = major ? '' : 'none';
+}
+buildRim();
+for (let i = 0; i < 12; i++) {
+  const [x1, y1] = P(441, i * 30 + 15), [x2, y2] = P(449, i * 30 + 15);
+  labelsG.insertAdjacentHTML('beforeend', `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--bezel-dim)" stroke-opacity=".5" stroke-width="2"/>`);
+}
+
+// Chord cells: 12 positions × 3 rings, laid out upright
+const cellsG = document.getElementById('cells');
+const cells = [];
+for (const q of ['M', 'm', 'd']) {
+  for (let j = 0; j < 12; j++) {
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', 'cell');
+    cellsG.appendChild(g);
+    cells.push({ g, j, q });
+  }
+}
+
+function badgeSVG(ch, half) {
+  const [bg, fg] = PC[ch.rootPc];
+  const sq = shapeOf(ch.rootPc) === 'sq';
+  const form = (attrs) => sq
+    ? `<rect x="${-half}" y="${-half}" width="${half * 2}" height="${half * 2}" rx="3" ${attrs}/>`
+    : `<circle r="${half + 2}" ${attrs}/>`;
+  const shape = `<g transform="translate(1.5 3)">${form('fill="var(--badge-shadow)"')}</g>` +
+    form(`fill="${bg}" stroke="var(--badge-line)" stroke-width="1.5"`);
+  const len = [...ch.triad].length;
+  const fs = len <= 1 ? 29 : len === 2 ? 24 : len === 3 ? 20 : 16;
+  return `<g class="pop">${shape}<text class="bname ${fg === '#fff' ? 'lt' : 'dk'}" y="${fs * 0.36}" text-anchor="middle" font-size="${fs}" fill="${fg}">${ch.triad}</text></g>`;
+}
+function dotsSVG(notes, y) {
+  const size = 18, gap = 20, w = (notes.length - 1) * gap;
+  return notes.map((n, i) => {
+    const [bg, fg] = PC[n.pc], x = -w / 2 + i * gap;
+    const shape = shapeOf(n.pc) === 'sq'
+      ? `<rect x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" rx="2" fill="${bg}" stroke="var(--badge-line)" stroke-width="1"/>`
+      : `<circle cx="${x}" cy="${y}" r="${size / 2 + 0.5}" fill="${bg}" stroke="var(--badge-line)" stroke-width="1"/>`;
+    const fs = [...n.name].length > 1 ? 10 : 12;
+    return `<g class="dot">${shape}<text class="${fg === '#fff' ? 'lt' : 'dk'}" x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs}" fill="${fg}">${n.name}</text></g>`;
+  }).join('');
+}
+
+// ---- Rotation state ----
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const disp = { disk: -S.t * 30, win: S.k * 30 };
+const targ = { disk: disp.disk, win: disp.win };
+let drag = null, raf = 0;
+
+function applyTransforms() {
+  disk.setAttribute('transform', `rotate(${disp.disk})`);
+  frameFill.setAttribute('transform', `rotate(${disp.win})`);
+  frameStroke.setAttribute('transform', `rotate(${disp.win})`);
+  for (const c of cells) {
+    const [x, y] = P(MID[c.q], c.j * 30 + disp.disk);
+    c.g.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+  }
+  positionDom();
+}
+function tick() {
+  let moving = false;
+  for (const key of ['disk', 'win']) {
+    if (drag && drag.moved && drag.kind === key) continue;
+    const diff = targ[key] - disp[key];
+    if (Math.abs(diff) > 0.05) { disp[key] += reduceMotion ? diff : diff * 0.2; moving = true; }
+    else disp[key] = targ[key];
+  }
+  applyTransforms();
+  raf = moving ? requestAnimationFrame(tick) : 0;
+}
+const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
+
+function setTonic(t) {
+  S.t = mod(t, 12);
+  const desired = -S.t * 30;
+  targ.disk = targ.disk + (mod(desired - targ.disk + 180, 360) - 180);
+  save(); render(); kick();
+}
+function setFamily(fam) {
+  if (!FAMILIES[fam] || fam === S.fam) return;
+  const q = tonicQ();
+  const pick = fam === 'major'
+    ? FAMILIES.major.modes.find(m => m.name === (q === 'm' ? 'Aeolian' : q === 'd' ? 'Locrian' : 'Ionian'))
+    : FAMILIES[fam].modes[0];
+  S.fam = fam; S.k = pick.k; targ.win = disp.win = S.k * 30;
+  buildRim(); save(); render(); kick();
+}
+function setMode(k) {
+  S.k = clamp(k, -5, 1); targ.win = S.k * 30;
+  save(); render(); kick();
+}
+
+// ---- Rendering ----
+const $ = id => document.getElementById(id);
+function nbHTML(name, pc, extra = '') {
+  const [bg, fg] = PC[pc];
+  return `<span class="nb ${shapeOf(pc)} ${extra}" style="background:${bg};color:${fg}">${name}</span>`;
+}
+
+function render() {
+  const I = info(), f = I.f, mode = I.m, fam = FAMILIES[S.fam];
+  const tonic = noteName(f);
+
+  // wheel cells
+  for (const c of cells) {
+    const p = rel(c.j, S.t), I = info();
+    let q = c.q;
+    const d = p + OFF[q];
+    if (q === 'M' && !I.byPc.has(mod(d, 12) + 'M') && I.byPc.has(mod(d, 12) + 'a')) q = 'a';
+    const ch = chord(d, q);
+    c.chord = ch;
+    c.g.classList.toggle('out', !ch.inKey);
+    const mark = ch.inKey && S.fam !== 'major' ? `<circle class="keymark" cy="1" r="34"/>` : '';
+    c.g.innerHTML = mark + `<text class="num" y="-35" text-anchor="middle" font-size="21">${ch.num}</text>` +
+      `<g transform="translate(0 1)">${badgeSVG(ch, 24)}</g>` + dotsSVG(ch.notes, 42);
+  }
+  $('hubT').textContent = tonic;
+  $('hubM').textContent = mode.short;
+  labelsG.querySelectorAll('.mode-label').forEach(el => el.classList.toggle('on', +el.dataset.k === S.k));
+
+  // header
+  $('title').textContent = `${tonic} ${mode.name}`;
+  if (S.fam === 'major') {
+    const s = f + mode.k;
+    const sig = s === 0 ? 'no ♯/♭' : s > 0 ? `${s}♯` : `${-s}♭`;
+    $('sub').textContent = `${mode.desc} · ${sig} · notes of ${noteName(s)} major`;
+  } else {
+    $('sub').textContent = `${mode.desc} · mode ${mode.deg} of ${fam.name.toLowerCase()}`;
+  }
+  const scale = I.sc.map(d => ({ x: f + d, dg: degreeOf(d) }));
+  $('scale').innerHTML = scale.map(({ x, dg }) =>
+    `<button class="n" data-note="${pcOf(x)}" title="Play ${noteName(x)}"><span class="deg">${accStr(dg.acc)}${dg.base}</span>${nbHTML(noteName(x), pcOf(x))}</button>`).join('');
+
+  // key buttons in circle-of-fifths order
+  $('keys').innerHTML = Array.from({ length: 12 }, (_, t) => {
+    const ft = tonicFifth(t, mode), pc = pcOf(ft);
+    return `<button class="pill" data-t="${t}" aria-pressed="${t === S.t}"><i class="sw ${shapeOf(pc)}" style="background:${PC[pc][0]}"></i>${noteName(ft)}</button>`;
+  }).join('');
+  $('modes').innerHTML = [...fam.modes].sort((a, b) => b.k - a.k).map(m =>
+    `<button class="pill" data-k="${m.k}" aria-pressed="${m.k === S.k}">${m.name}<small>${m.desc}</small></button>`).join('');
+  document.querySelectorAll('#fam .pill').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.fam === S.fam)));
+  $('sev-off').setAttribute('aria-pressed', String(!S.sev));
+  $('sev-on').setAttribute('aria-pressed', String(S.sev));
+  $('dom-off').setAttribute('aria-pressed', String(!S.dom));
+  $('dom-on').setAttribute('aria-pressed', String(S.dom));
+
+  // diatonic chords in scale-degree order
+  const dia = I.chords.map(c => chord(c.d, c.q));
+  $('chords').innerHTML = dia.map(ch =>
+    `<button class="ccard" data-d="${ch.d}" data-q="${ch.q}" title="Tap: play · Double-tap: add">
+      <span class="rn">${ch.num}</span>${nbHTML(ch.triad, ch.rootPc)}
+      <span class="nm">${ch.name}</span><span class="tn">${ch.notes.map(n => n.name).join(' ')}</span></button>`).join('');
+
+  renderProg();
+  renderDom();
+
+  $('presetLabel').textContent = `Common in ${mode.name}`;
+  $('presetGroup').hidden = !mode.presets.length;
+  $('presets').innerHTML = mode.presets.map((ps, i) =>
+    `<button class="pill" data-preset="${i}">${ps.split(' ').map(prettyNum).join(' – ')}</button>`).join('');
+}
+
+function renderProg() {
+  const el = $('prog');
+  if (!S.prog.length) {
+    el.innerHTML = `<p class="empty">Double-tap a chord to add it.</p>`;
+    return;
+  }
+  el.innerHTML = S.prog.map((it, i) => {
+    const ch = chord(it.d, it.q, it.dom);
+    let fn = '';
+    if (S.dom && it.q === 'M' && S.prog.length > 1) {
+      const next = S.prog[i + 1] || (S.loop ? S.prog[0] : null);
+      if (next && next.d === it.d - 1) fn = domLabel(next);
+    }
+    return `<div class="chip${playing && playing.i === i ? ' playing' : ''}" data-i="${i}">
+      <button class="chip-main" data-i="${i}" title="Play ${ch.name}">
+        <span class="rn">${ch.num}</span>
+        <span class="nm">${nbHTML(ch.triad.replace(/m$|°$|\+$/, ''), ch.rootPc)}${ch.name}</span>
+        <span class="tag">${fn ? `<span class="fn">→ ${fn}</span>` : ch.inKey ? ch.notes.map(n => n.name).join(' ') : 'borrowed'}</span>
+      </button>
+      <button class="chip-x" data-x="${i}" aria-label="Remove ${ch.name}">×</button>
+    </div>`;
+  }).join('');
+}
+
+// ---- Audio ----
+let ac = null, master = null;
+function audio() {
+  if (!ac) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ac = new AC();
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2800;
+    const comp = ac.createDynamicsCompressor();
+    master = ac.createGain(); master.gain.value = 0.2;
+    master.connect(lp); lp.connect(comp); comp.connect(ac.destination);
+  }
+  if (ac.state === 'suspended') ac.resume();
+  return ac;
+}
+const SYNTHS = {
+  piano:   'Piano',
+  guitar:  'Guitar',
+  keys:    'Soft keys',
+  epiano:  'Electric piano',
+  pad:     'Warm pad',
+  strings: 'Strings',
+  organ:   'Organ',
+  pluck:   'Pluck',
+  bell:    'Bell',
+  chip:    'Chiptune',
+};
+if (!SYNTHS[S.synth]) S.synth = 'piano';
+
+// Attack, decay to a sustain level, then release when the note ends.
+function envelope(param, t0, dur, peak, a, d, sus, r) {
+  param.setValueAtTime(0, t0);
+  param.linearRampToValueAtTime(peak, t0 + a);
+  param.setTargetAtTime(Math.max(peak * sus, 0.0001), t0 + a, d / 3);
+  param.setTargetAtTime(0.0001, t0 + dur, r / 3);
+  return t0 + dur + r * 2;
+}
+function osc(type, freq, t0, t1, dest, lvl = 1, det = 0) {
+  const o = ac.createOscillator(), og = ac.createGain();
+  o.type = type; o.frequency.value = freq; o.detune.value = det; og.gain.value = lvl;
+  o.connect(og); og.connect(dest); o.start(t0); o.stop(t1);
+  return o;
+}
+function voice(midi, t0, dur, vel) {
+  const f = 440 * Math.pow(2, (midi - 69) / 12);
+  const g = ac.createGain();
+  g.connect(master);
+  let stop;
+  switch (S.synth) {
+    case 'epiano': {
+      // Two-operator FM: a modulator whose depth fades gives the bright attack of a tine.
+      stop = envelope(g.gain, t0, dur, vel * 0.9, 0.004, 1.6, 0.3, 0.5);
+      const car = osc('sine', f, t0, stop, g);
+      const m = ac.createOscillator(), mg = ac.createGain();
+      m.frequency.value = f; m.connect(mg); mg.connect(car.frequency);
+      mg.gain.setValueAtTime(f * 1.6, t0);
+      mg.gain.setTargetAtTime(f * 0.15, t0, 0.25);
+      m.start(t0); m.stop(stop);
+      const tine = ac.createGain(); tine.connect(g);
+      tine.gain.setValueAtTime(0.12, t0); tine.gain.setTargetAtTime(0.0001, t0, 0.08);
+      osc('sine', f * 4, t0, t0 + 0.6, tine);
+      break;
+    }
+    case 'pad': {
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100; lp.Q.value = 0.6;
+      lp.connect(g);
+      stop = envelope(g.gain, t0, dur, vel * 0.5, 0.35, 0.9, 0.8, 1.0);
+      osc('sawtooth', f, t0, stop, lp, 0.5, -9);
+      osc('sawtooth', f, t0, stop, lp, 0.5, 9);
+      osc('triangle', f / 2, t0, stop, lp, 0.35);
+      break;
+    }
+    case 'organ': {
+      stop = envelope(g.gain, t0, dur, vel * 0.45, 0.01, 0.1, 1, 0.08);
+      [[1, 1], [2, 0.6], [3, 0.3], [4, 0.2], [0.5, 0.35]].forEach(([mul, lvl]) => osc('sine', f * mul, t0, stop, g, lvl));
+      break;
+    }
+    case 'pluck': {
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2;
+      lp.frequency.setValueAtTime(5000, t0);
+      lp.frequency.setTargetAtTime(350, t0, 0.12);
+      lp.connect(g);
+      stop = envelope(g.gain, t0, Math.min(dur, 0.9), vel * 0.8, 0.003, 0.9, 0.001, 0.2);
+      osc('sawtooth', f, t0, stop, lp, 0.7);
+      osc('square', f, t0, stop, lp, 0.25, 6);
+      break;
+    }
+    case 'chip': {
+      stop = envelope(g.gain, t0, dur, vel * 0.35, 0.004, 0.25, 0.55, 0.05);
+      osc('square', f, t0, stop, g);
+      break;
+    }
+    default: {
+      stop = envelope(g.gain, t0, dur, vel, 0.012, 0.4, 0.45, 0.45);
+      osc('triangle', f, t0, stop, g, 1, -3);
+      osc('sine', f * 2, t0, stop, g, 0.22, 4);
+    }
+  }
+}
+// ---- Tone.js engine. If the library fails to load, the built-in synth above is used. ----
+const hasTone = () => typeof window.Tone !== 'undefined';
+let toneBus = null;
+const toneSynths = {};
+function toneSynth(id) {
+  if (toneSynths[id]) return toneSynths[id];
+  const T = window.Tone;
+  if (!toneBus) {
+    const limiter = new T.Limiter(-2).toDestination();
+    const reverb = new T.Reverb({ decay: 2.8, wet: 0.22 }).connect(limiter);
+    toneBus = new T.Gain(0.9).connect(reverb);
+  }
+  let s, fx = [];
+  switch (id) {
+    case 'piano':
+      // Bright hammer attack that darkens as the note rings, with no sustain: the shape of a struck string.
+      s = new T.PolySynth(T.MonoSynth, {
+        oscillator: { type: 'custom', partials: [1, 0.55, 0.3, 0.2, 0.12, 0.08, 0.05, 0.03] },
+        filter: { type: 'lowpass', Q: 0.5, rolloff: -12 },
+        filterEnvelope: { attack: 0.001, decay: 1.4, sustain: 0.25, release: 1.2, baseFrequency: 350, octaves: 4 },
+        envelope: { attack: 0.002, decay: 3.2, sustain: 0, release: 1.1 } });
+      s.maxPolyphony = 48;
+      s.volume.value = -8;
+      fx = [new T.EQ3({ low: 2, mid: 0, high: -2 })];
+      break;
+    case 'epiano':
+      s = new T.PolySynth(T.FMSynth, { harmonicity: 1, modulationIndex: 7,
+        oscillator: { type: 'sine' }, modulation: { type: 'sine' },
+        envelope: { attack: 0.002, decay: 1.8, sustain: 0.2, release: 1.2 },
+        modulationEnvelope: { attack: 0.002, decay: 0.35, sustain: 0.08, release: 0.6 } });
+      s.volume.value = -9; fx = [new T.Chorus(2, 2, 0.35).start()]; break;
+    case 'pad':
+      s = new T.PolySynth(T.Synth, { oscillator: { type: 'fatsawtooth', count: 3, spread: 28 },
+        envelope: { attack: 0.6, decay: 1.2, sustain: 0.8, release: 2.8 } });
+      s.volume.value = -21; fx = [new T.Filter(1300, 'lowpass'), new T.Chorus(0.5, 3.5, 0.6).start()]; break;
+    case 'strings':
+      s = new T.PolySynth(T.Synth, { oscillator: { type: 'fatsawtooth', count: 4, spread: 18 },
+        envelope: { attack: 0.25, decay: 0.4, sustain: 0.9, release: 1.4 } });
+      s.volume.value = -21; fx = [new T.Filter(2400, 'lowpass'), new T.Vibrato(5, 0.05)]; break;
+    case 'organ':
+      s = new T.PolySynth(T.Synth, { oscillator: { type: 'custom', partials: [1, 0.75, 0.4, 0.3, 0, 0.15, 0, 0.1] },
+        envelope: { attack: 0.008, decay: 0.1, sustain: 1, release: 0.12 } });
+      s.volume.value = -17; fx = [new T.Vibrato(5.5, 0.06)]; break;
+    case 'pluck':
+      s = new T.PolySynth(T.MonoSynth, { oscillator: { type: 'fatsawtooth', count: 2, spread: 10 },
+        filter: { type: 'lowpass', Q: 2, rolloff: -24 },
+        filterEnvelope: { attack: 0.002, decay: 0.3, sustain: 0.1, release: 0.4, baseFrequency: 250, octaves: 4.2 },
+        envelope: { attack: 0.002, decay: 0.8, sustain: 0, release: 0.4 } });
+      s.volume.value = -13; break;
+    case 'bell':
+      s = new T.PolySynth(T.FMSynth, { harmonicity: 3.5, modulationIndex: 12,
+        envelope: { attack: 0.001, decay: 2.2, sustain: 0, release: 2 },
+        modulationEnvelope: { attack: 0.001, decay: 0.6, sustain: 0, release: 0.5 } });
+      s.volume.value = -15; break;
+    case 'chip':
+      s = new T.PolySynth(T.Synth, { oscillator: { type: 'pulse', width: 0.3 },
+        envelope: { attack: 0.002, decay: 0.18, sustain: 0.45, release: 0.06 } });
+      s.volume.value = -23; break;
+    default:
+      s = new T.PolySynth(T.Synth, { oscillator: { type: 'fattriangle', count: 3, spread: 14 },
+        envelope: { attack: 0.005, decay: 0.9, sustain: 0.25, release: 1.4 } });
+      s.volume.value = -10;
+  }
+  s.chain(...fx, toneBus);
+  return (toneSynths[id] = s);
+}
+// Guitar: Karplus-Strong plucked strings, rendered into audio buffers in plain JS.
+// (Tone's PluckSynth needs an AudioWorklet, which the artifact frame does not allow.)
+const pluckCache = new Map();
+function pluckBuffer(ctx, midi) {
+  const key = ctx.sampleRate + ':' + midi;
+  if (pluckCache.has(key)) return pluckCache.get(key);
+  const sr = ctx.sampleRate, f = 440 * Math.pow(2, (midi - 69) / 12);
+  const exact = sr / f, N = Math.floor(exact);
+  const len = Math.floor(sr * 3.2), buf = ctx.createBuffer(1, len, sr), y = buf.getChannelData(0);
+  // The pick: a short burst of softened noise, one period long.
+  // Softened noise, DC removed, then a comb that mimics plucking a fifth of the way along the string.
+  const ex = new Float32Array(N);
+  let lp = 0, mean = 0, peak = 0;
+  for (let i = 0; i < N; i++) { lp += 0.5 * ((Math.random() * 2 - 1) - lp); ex[i] = lp; mean += lp / N; }
+  const pos = Math.max(1, Math.round(N * 0.2));
+  for (let i = 0; i < N; i++) { y[i] = (ex[i] - mean) - (i >= pos ? ex[i - pos] - mean : 0); peak = Math.max(peak, Math.abs(y[i])); }
+  for (let i = 0; i < N; i++) y[i] *= 0.6 / (peak || 1);
+  // The string: each period is the previous one, averaged (which darkens it) and slightly damped.
+  const rho = 0.996;
+  for (let i = N; i < len; i++) y[i] = rho * 0.5 * (y[i - N] + (i - N - 1 >= 0 ? y[i - N - 1] : 0));
+  const fade = Math.floor(sr * 0.25);
+  for (let i = 0; i < fade; i++) y[len - 1 - i] *= i / fade;
+  // The averaging adds half a sample of delay; correct the pitch with the playback rate.
+  const out = { buf, rate: (N + 0.5) / exact };
+  pluckCache.set(key, out);
+  return out;
+}
+function pluck(ctx, connect, midi, when, dur, vel) {
+  const { buf, rate } = pluckBuffer(ctx, midi);
+  const src = ctx.createBufferSource(), g = ctx.createGain();
+  src.buffer = buf; src.playbackRate.value = rate;
+  const end = when + Math.max(dur, 1.4);
+  g.gain.setValueAtTime(vel, when);
+  g.gain.setValueAtTime(vel, end);
+  g.gain.setTargetAtTime(0.0001, end, 0.12);
+  src.connect(g); connect(g);
+  src.start(when); src.stop(end + 0.8);
+}
+let guitarOut = null;
+function toneGuitarOut() {
+  if (guitarOut) return guitarOut;
+  const T = window.Tone;
+  toneSynth('keys');                       // makes sure the shared bus exists
+  const body = new T.Filter(3400, 'lowpass').connect(toneBus);
+  guitarOut = new T.EQ3({ low: 3, mid: 1, high: -3 }).connect(body);
+  return guitarOut;
+}
+function strum(ctx, connect, notes, t0, dur) {
+  notes.slice().sort((a, b) => a.midi - b.midi)
+    .forEach((n, i) => pluck(ctx, connect, n.midi + 12, t0 + i * 0.03, dur, Math.min(1, n.vel * 1.2)));
+}
+
+// notes: [{ midi, delay, vel }] with vel on a 0..1 scale
+function sound(notes, dur) {
+  if (hasTone()) {
+    try {
+      const T = window.Tone;
+      if (T.context.state !== 'running') T.start();
+      const now = T.now() + 0.03;
+      if (S.synth === 'guitar') {
+        const out = toneGuitarOut();
+        strum(T.getContext().rawContext, node => T.connect(node, out), notes, now, dur);
+        return;
+      }
+      const s = toneSynth(S.synth);
+      notes.forEach(n => s.triggerAttackRelease(T.Frequency(n.midi, 'midi').toFrequency(), dur, now + n.delay, n.vel));
+      return;
+    } catch (e) { console.warn('Tone.js failed, using the built-in synth', e); }
+  }
+  if (!audio()) return;
+  const t0 = ac.currentTime + 0.02;
+  if (S.synth === 'guitar') return strum(ac, node => node.connect(master), notes, t0, dur);
+  notes.forEach(n => voice(n.midi, t0 + n.delay, dur, n.vel * 0.55));
+}
+function playNote(pc) {
+  const tp = pcOf(info().f);
+  let base = 60 + tp; if (base > 65) base -= 12;
+  sound([{ midi: base + mod(pc - tp, 12), delay: 0, vel: 0.75 }], 0.8);
+}
+function playChord(ch, dur = 1.3, keepFocus = false) {
+  let bass = 36 + ch.rootPc; if (bass < 40) bass += 12;
+  sound([{ midi: bass, delay: 0, vel: 0.8 }].concat(
+    ch.notes.map((n, i) => ({ midi: 55 + mod(n.pc - 7, 12), delay: 0.02 + i * 0.018, vel: 0.55 }))), dur);
+  flashCell(ch, 'hit');
+  if (!keepFocus) { focus = { d: ch.d, q: ch.q }; if (S.dom) renderDom(); }
+}
+
+// ---- Dominants ----
+let focus = null;
+const tonicQ = () => info().tonicQ;
+const isTonic = c => mod(c.d, 12) === 0 && c.q === tonicQ();
+// Label for the dominant that leads into chord c, e.g. "V" or "V/ii".
+const domLabel = c => isTonic(c) ? 'V' : 'V/' + numeral(c.d, c.q);
+let domGeom = null;
+function domPairs() {
+  // Dominants lead into major and minor chords (and always the tonic).
+  return info().chords.filter((c, i) => i === 0 || c.q === 'M' || c.q === 'm')
+    .map(c => ({ target: { d: c.d, q: c.q }, dom: { d: c.d + 1, q: 'M' } }));
+}
+// The chord a major chord resolves to when it acts as a dominant: root a fifth lower,
+// using the quality that fits the key.
+function resolutionOf(c) {
+  const d = c.d - 1, I = info();
+  if (mod(d, 12) === 0) return { d: 0, q: I.tonicQ };
+  const hit = I.byPc.get(mod(d, 12) + 'M') || I.byPc.get(mod(d, 12) + 'm');
+  return hit ? { d: hit.d, q: hit.q } : { d, q: 'M' };
+}
+function renderDom() {
+  const layer = $('domLayer');
+  $('domCard').hidden = !S.dom;
+  if (!S.dom) { layer.innerHTML = ''; domGeom = null; return; }
+  const T = focus || { d: 0, q: tonicQ() };
+  const R = T.q === 'M' ? resolutionOf(T) : null;
+  const t = chord(T.d, T.q), din = chord(T.d + 1, 'M', true);
+  const place = c => ({ q: c.q === 'a' ? 'M' : c.q, j: mod(S.t + c.d - OFF[c.q], 12) });
+  domGeom = [place(T), place({ d: T.d + 1, q: 'M' }), R ? place(R) : null];
+  const pill = (id, txt) => {
+    const w = 16 + [...txt].length * 9.5;
+    return `<g class="dom-pill" id="${id}"><rect x="${-w / 2}" y="-13" width="${w}" height="26" rx="13"/><text y="5.5" text-anchor="middle" font-size="15">${txt}</text></g>`;
+  };
+  layer.innerHTML =
+    `<path class="dom-halo" id="dh1"/><path class="dom-arrow" id="da1" marker-end="url(#ah)"/>` +
+    (R ? `<path class="dom-halo" id="dh2"/><path class="dom-arrow dashed" id="da2" marker-end="url(#ah)"/>` : '') +
+    `<circle class="dom-ring" id="dr0" r="36"/><circle class="dom-ring" id="dr1" r="36"/>` +
+    (R ? `<circle class="dom-ring dashed" id="dr2" r="36"/>` : '') +
+    pill('dl1', domLabel(T)) + (R ? pill('dl0', domLabel(R)) : '');
+  let text = `<strong>${din.name}</strong> → <strong>${t.triad}</strong> (${domLabel(T)})`;
+  if (R) {
+    const r = chord(R.d, R.q), asDom = chord(T.d, 'M', true);
+    text += ` · <strong>${asDom.name}</strong> → <strong>${r.triad}</strong> (${domLabel(R)})`;
+  } else {
+    text += ` · ${t.triad} is ${{ m: 'minor', d: 'diminished', a: 'augmented' }[T.q]}, not a dominant`;
+  }
+  $('domFocus').innerHTML = text;
+  $('domList').innerHTML = domPairs().map((pr, i) => {
+    const tc = chord(pr.target.d, pr.target.q), dc = chord(pr.dom.d, 'M', true);
+    return `<button class="ccard" data-pair="${i}" title="Tap: play · Double-tap: add both">
+      <span class="rn">${domLabel(pr.target)}</span>${nbHTML(dc.root, dc.rootPc)}
+      <span class="nm">${dc.name}</span><span class="to">→ ${tc.name}</span></button>`;
+  }).join('');
+  positionDom();
+}
+function arrowPath(a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+  const ux = dx / L, uy = dy / L, sh = Math.min(40, L / 3);
+  const s = [a[0] + ux * sh, a[1] + uy * sh], e = [b[0] - ux * (sh + 4), b[1] - uy * (sh + 4)];
+  // Bow the curve toward the centre so it runs between the rings instead of across chords.
+  const c = [(s[0] + e[0]) / 2 * 0.72, (s[1] + e[1]) / 2 * 0.72];
+  return `M ${s[0].toFixed(1)} ${s[1].toFixed(1)} Q ${c[0].toFixed(1)} ${c[1].toFixed(1)} ${e[0].toFixed(1)} ${e[1].toFixed(1)}`;
+}
+function positionDom() {
+  if (!domGeom) return;
+  const xy = domGeom.map(g => g && P(MID[g.q], g.j * 30 + disp.disk));
+  const set = (id, attrs) => { const el = document.getElementById(id); if (el) for (const k in attrs) el.setAttribute(k, attrs[k]); };
+  xy.forEach((c, i) => c && set('dr' + i, { cx: c[0].toFixed(1), cy: (c[1] + 1).toFixed(1) }));
+  const pillAt = (id, c) => set(id, { transform: `translate(${c[0].toFixed(1)} ${(c[1] - 36).toFixed(1)})` });
+  pillAt('dl1', xy[1]);
+  const a1 = arrowPath(xy[1], xy[0]);
+  set('da1', { d: a1 }); set('dh1', { d: a1 });
+  if (xy[2]) {
+    pillAt('dl0', xy[0]);
+    const a2 = arrowPath(xy[0], xy[2]);
+    set('da2', { d: a2 }); set('dh2', { d: a2 });
+  }
+}
+function cellFor(ch) {
+  const j = mod(S.t + ch.p, 12), ring = ch.q === 'a' ? 'M' : ch.q;
+  return cells.find(c => c.j === j && c.q === ring);
+}
+function flashCell(ch, cls) {
+  const c = cellFor(ch); if (!c) return;
+  c.g.classList.remove(cls); void c.g.getBBox(); c.g.classList.add(cls);
+  if (cls === 'hit') setTimeout(() => c.g.classList.remove('hit'), 460);
+}
+
+// ---- Progression playback ----
+let playing = null;
+function stepPlay() {
+  if (!playing) return;
+  if (playing.i >= S.prog.length) {
+    if (S.loop && S.prog.length) playing.i = 0; else return stopPlay();
+  }
+  const it = S.prog[playing.i];
+  const ch = chord(it.d, it.q, it.dom);
+  const beat = 60 / S.bpm, bar = beat * 4;
+  cells.forEach(c => c.g.classList.remove('now'));
+  const c = cellFor(ch); if (c) c.g.classList.add('now');
+  renderProg();
+  playChord(ch, bar * 0.9);
+  playing.timer = setTimeout(() => { if (playing) { playing.i++; stepPlay(); } }, bar * 1000);
+}
+function startPlay() {
+  if (!S.prog.length) return;
+  playing = { i: 0, timer: 0 };
+  $('play').setAttribute('aria-pressed', 'true'); $('play').textContent = '■ Stop';
+  stepPlay();
+}
+function stopPlay() {
+  if (playing) clearTimeout(playing.timer);
+  playing = null;
+  cells.forEach(c => c.g.classList.remove('now'));
+  $('play').setAttribute('aria-pressed', 'false'); $('play').textContent = '▶ Play';
+  renderProg();
+}
+
+// Single tap plays; a second tap on the same thing within 400 ms adds it to the progression.
+let lastTap = null;
+function isDoubleTap(key) {
+  const now = performance.now();
+  if (lastTap && lastTap.key === key && now - lastTap.time < 400) { lastTap = null; return true; }
+  lastTap = { key, time: now };
+  return false;
+}
+function tapChord(d, q) {
+  if (isDoubleTap('c' + d + q)) {
+    if (S.prog.length < 16) { S.prog.push({ d, q }); save(); renderProg(); }
+    return;
+  }
+  playChord(chord(d, q));
+}
+let pairTimer = 0;
+function tapPair(i) {
+  const pr = domPairs()[i]; if (!pr) return;
+  if (isDoubleTap('p' + i)) {
+    if (S.prog.length < 15) { S.prog.push({ d: pr.dom.d, q: 'M', dom: true }, { ...pr.target }); save(); renderProg(); }
+    return;
+  }
+  clearTimeout(pairTimer);
+  focus = { ...pr.target }; renderDom();
+  playChord(chord(pr.dom.d, 'M', true), 0.8, true);
+  pairTimer = setTimeout(() => playChord(chord(pr.target.d, pr.target.q), 1.3), 850);
+}
+
+// ---- Wheel pointer interaction ----
+function toSVG(e) {
+  const m = svg.getScreenCTM().inverse();
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
+  return { x: p.x, y: p.y, r: Math.hypot(p.x, p.y), a: Math.atan2(p.x, -p.y) * 180 / Math.PI };
+}
+const norm = a => mod(a + 180, 360) - 180;
+svg.addEventListener('pointerdown', e => {
+  const p = toSVG(e);
+  if (p.r > 500) return;
+  const zone = p.r > 432 ? 'rim' : p.r < 90 ? 'hub' : 'ring';
+  const kind = zone === 'rim' ? 'win' : 'disk';
+  drag = { kind, zone, p, lastA: p.a, total: 0, start: disp[kind], cx: e.clientX, cy: e.clientY, moved: false };
+  svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const p = toSVG(e);
+  drag.total += norm(p.a - drag.lastA); drag.lastA = p.a;
+  if (!drag.moved && Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) > 6) { drag.moved = true; svg.classList.add('grabbing'); }
+  if (!drag.moved) return;
+  if (drag.kind === 'disk') {
+    disp.disk = drag.start + drag.total;
+    const t = mod(Math.round(-disp.disk / 30), 12);
+    if (t !== S.t) { S.t = t; render(); }
+  } else {
+    disp.win = clamp(drag.start + drag.total, -165, 45);
+    const k = clamp(Math.round(disp.win / 30), -5, 1);
+    if (k !== S.k) { S.k = k; render(); }
+  }
+  applyTransforms();
+});
+function endDrag(e) {
+  if (!drag) return;
+  const d = drag; drag = null; svg.classList.remove('grabbing');
+  if (!d.moved && e.type === 'pointerup') {
+    const { r, a } = d.p;
+    if (d.zone === 'rim') {
+      const k = Math.round(norm(a) / 30);
+      if (k >= -5 && k <= 1) setMode(k);
+    } else if (d.zone === 'hub') {
+      playChord(chord(0, tonicQ()));
+    } else {
+      const ring = r < 220 ? 'M' : r < 330 ? 'm' : 'd';
+      const j = mod(Math.round((a - disp.disk) / 30), 12);
+      const c = cells.find(x => x.j === j && x.q === ring);
+      tapChord(c.chord.d, c.chord.q);
+    }
+  } else {
+    targ.disk = Math.round(disp.disk / 30) * 30;
+    targ.win = S.k * 30;
+    save();
+  }
+  kick();
+}
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+svg.addEventListener('keydown', e => {
+  const map = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+  const m = map[e.key]; if (!m) return;
+  e.preventDefault();
+  if (m[0]) setTonic(S.t + m[0]);
+  else setMode(S.k + m[1]);
+});
+
+// ---- Panel interaction ----
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.note !== undefined) playNote(+b.dataset.note);
+  else if (b.dataset.t !== undefined) setTonic(+b.dataset.t);
+  else if (b.dataset.k !== undefined && b.closest('#modes')) setMode(+b.dataset.k);
+  else if (b.dataset.fam !== undefined) setFamily(b.dataset.fam);
+  else if (b.closest('#sev')) { S.sev = b.dataset.v === '1'; save(); render(); }
+  else if (b.dataset.dom !== undefined) { S.dom = b.dataset.dom === '1'; save(); render(); }
+  else if (b.dataset.pair !== undefined) tapPair(+b.dataset.pair);
+  else if (b.classList.contains('ccard')) tapChord(+b.dataset.d, b.dataset.q);
+  else if (b.dataset.x !== undefined) {
+    const i = +b.dataset.x; S.prog.splice(i, 1);
+    if (playing && playing.i >= i) playing.i = Math.max(0, playing.i - 1);
+    if (!S.prog.length) stopPlay();
+    save(); renderProg();
+  }
+  else if (b.classList.contains('chip-main')) { if (suppressClick) { suppressClick = false; return; } const it = S.prog[+b.dataset.i]; playChord(chord(it.d, it.q, it.dom)); }
+  else if (b.dataset.preset !== undefined) {
+    S.prog = curMode().presets[+b.dataset.preset].split(' ').map(parseNumeral).filter(Boolean);
+    save(); if (playing) { stopPlay(); startPlay(); } else renderProg();
+  }
+  else if (b.id === 'play') playing ? stopPlay() : startPlay();
+  else if (b.id === 'loop') { S.loop = !S.loop; b.setAttribute('aria-pressed', String(S.loop)); save(); }
+  else if (b.id === 'clear') { stopPlay(); S.prog = []; save(); renderProg(); }
+});
+// ---- Drag to reorder progression ----
+let pdrag = null, suppressClick = false;
+$('prog').addEventListener('pointerdown', e => {
+  const main = e.target.closest('.chip-main'); if (!main || e.button > 0) return;
+  const chip = main.closest('.chip');
+  pdrag = { chip, x: e.clientX, y: e.clientY, started: false, id: e.pointerId };
+});
+document.addEventListener('pointermove', e => {
+  if (!pdrag || e.pointerId !== pdrag.id) return;
+  if (!pdrag.started) {
+    if (Math.hypot(e.clientX - pdrag.x, e.clientY - pdrag.y) < 6) return;
+    const r = pdrag.chip.getBoundingClientRect();
+    pdrag.dx = pdrag.x - r.left; pdrag.dy = pdrag.y - r.top;
+    const ghost = pdrag.chip.cloneNode(true);
+    ghost.classList.add('ghost'); ghost.style.width = r.width + 'px';
+    document.body.appendChild(ghost);
+    pdrag.ghost = ghost; pdrag.started = true;
+    pdrag.chip.classList.add('placeholder');
+  }
+  pdrag.ghost.style.left = (e.clientX - pdrag.dx) + 'px';
+  pdrag.ghost.style.top = (e.clientY - pdrag.dy) + 'px';
+  const over = document.elementFromPoint(e.clientX, e.clientY);
+  const target = over && over.closest('#prog .chip');
+  if (target && target !== pdrag.chip) {
+    const r = target.getBoundingClientRect();
+    const after = e.clientX > r.left + r.width / 2;
+    target.parentNode.insertBefore(pdrag.chip, after ? target.nextSibling : target);
+  }
+});
+function endProgDrag(e) {
+  if (!pdrag || e.pointerId !== pdrag.id) return;
+  const d = pdrag; pdrag = null;
+  if (!d.started) return;
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+  d.ghost.remove();
+  const order = [...$('prog').querySelectorAll('.chip')].map(c => +c.dataset.i);
+  const playingItem = playing ? S.prog[playing.i] : null;
+  S.prog = order.map(i => S.prog[i]);
+  if (playingItem) playing.i = Math.max(0, S.prog.indexOf(playingItem));
+  save(); renderProg();
+}
+document.addEventListener('pointerup', endProgDrag);
+document.addEventListener('pointercancel', endProgDrag);
+
+$('synth').innerHTML = Object.entries(SYNTHS).map(([v, n]) => `<option value="${v}">${n}</option>`).join('');
+$('synth').value = S.synth;
+$('synth').addEventListener('change', e => {
+  S.synth = e.target.value; save();
+  if (!playing) playChord(chord(0, tonicQ()));
+});
+$('bpm').value = S.bpm; $('bpmv').textContent = S.bpm;
+$('loop').setAttribute('aria-pressed', String(S.loop));
+$('bpm').addEventListener('input', e => { S.bpm = +e.target.value; $('bpmv').textContent = S.bpm; save(); });
+
+render();
+applyTransforms();
+})();
+</script>
+</body>
+</html>
