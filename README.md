@@ -2,7 +2,7 @@
 
 An interactive circle of fifths for building chord progressions, based on a physical mode wheel.
 
-**Live:** https://danielbreiner.github.io/chord-mode-wheel/
+**Live:** https://danielbreiner.eu/chord-mode-wheel/
 
 - Turn the disc to pick a key; turn the rim to pick a mode.
 - Major, harmonic minor and melodic minor scales, each with its seven modes.
