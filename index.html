@@ -18,7 +18,7 @@ img{max-width:100%}
   --bezel:#2A2829; --bezel-ink:#FFFFFF; --bezel-dim:#9E9A9B;
   --ring1:#F1F1F3; --ring2:#E3E3E6; --ring3:#D3D4D8; --ringline:#9C9DA4;
   --hub:#2C2A2B; --hub-ink:#FFFFFF; --hub-dim:#A9A5A6;
-  --frame:rgba(17,17,19,.75); --frame-fill:rgba(255,255,255,.55);
+  --frame:rgba(17,17,19,.75); --frame-fill:rgba(255,255,255,.55); --mask:rgba(36,36,42,.55);
   --btn:#E6E7EB; --btn-hover:#DADBE0; --btn-on:#1C1C20; --btn-on-ink:#FFFFFF;
   --chip:#FFFFFF; --focus:#2150A8;
   --halo:rgba(255,255,255,.92); --dom:#111113; --dom-ink:#FFFFFF; --badge-line:rgba(0,0,0,.3); --badge-shadow:rgba(0,0,0,.22);
@@ -30,7 +30,7 @@ img{max-width:100%}
     --bezel:#050506; --bezel-ink:#FFFFFF; --bezel-dim:#8F8B8C;
     --ring1:#3A3B41; --ring2:#303137; --ring3:#27282D; --ringline:#50525A;
     --hub:#0A0A0B; --hub-ink:#FFFFFF; --hub-dim:#8E8A8B;
-    --frame:rgba(236,236,240,.62); --frame-fill:rgba(255,255,255,.07);
+    --frame:rgba(236,236,240,.62); --frame-fill:rgba(255,255,255,.07); --mask:rgba(8,8,10,.64);
     --btn:#26272B; --btn-hover:#2F3035; --btn-on:#ECECEF; --btn-on-ink:#111113;
     --chip:#232428; --focus:#7FA6F0;
     --halo:rgba(0,0,0,.8); --dom:#F4F4F6; --dom-ink:#111113; --badge-line:rgba(255,255,255,.4); --badge-shadow:rgba(0,0,0,.55);
@@ -42,7 +42,7 @@ img{max-width:100%}
   --bezel:#050506; --bezel-ink:#FFFFFF; --bezel-dim:#8F8B8C;
   --ring1:#3A3B41; --ring2:#303137; --ring3:#27282D; --ringline:#50525A;
   --hub:#0A0A0B; --hub-ink:#FFFFFF; --hub-dim:#8E8A8B;
-  --frame:rgba(236,236,240,.62); --frame-fill:rgba(255,255,255,.07);
+  --frame:rgba(236,236,240,.62); --frame-fill:rgba(255,255,255,.07); --mask:rgba(8,8,10,.64);
   --btn:#26272B; --btn-hover:#2F3035; --btn-on:#ECECEF; --btn-on-ink:#111113;
   --chip:#232428; --focus:#7FA6F0;
   --halo:rgba(0,0,0,.8); --dom:#F4F4F6; --dom-ink:#111113; --badge-line:rgba(255,255,255,.4); --badge-shadow:rgba(0,0,0,.55);
@@ -63,14 +63,13 @@ header.top p{margin:0;color:var(--muted)}
 
 /* wheel internals */
 .cell{transition:opacity .25s}
-.cell.out{opacity:.45}
 .cell .num{font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--halo);stroke-width:5px;stroke-linejoin:round}
 .cell .lt{paint-order:stroke;stroke:rgba(0,0,0,.4);stroke-width:2.5px;stroke-linejoin:round}
 .cell .dk{paint-order:stroke;stroke:rgba(255,255,255,.55);stroke-width:2.5px;stroke-linejoin:round}
 .cell .bname,.cell .dot text{font-weight:700}
 .dom-arrow{fill:none;stroke:var(--dom);stroke-width:3.5;stroke-linecap:round}
 .dom-halo{fill:none;stroke:var(--halo);stroke-width:9;stroke-linecap:round}
-.keymark{fill:var(--frame-fill);stroke:var(--frame);stroke-width:2.5}
+.window-edge{fill:none;stroke:var(--frame);stroke-opacity:.45;stroke-width:2.5;stroke-linecap:round}
 .dom-ring{fill:none;stroke:var(--dom);stroke-width:3.5}
 .dashed{stroke-dasharray:9 7}
 .dom-pill rect{fill:var(--dom)}
@@ -171,9 +170,15 @@ svg text{font-family:inherit}
       <g id="disk"></g>
       <circle r="330" fill="none" stroke="var(--ringline)" stroke-width="1.5"/>
       <circle r="220" fill="none" stroke="var(--ringline)" stroke-width="1.5"/>
-      <g id="frameFill"></g>
-      <g id="frameStroke" pointer-events="none"></g>
+      <defs>
+        <mask id="windows" maskUnits="userSpaceOnUse" x="-500" y="-500" width="1000" height="1000">
+          <rect x="-500" y="-500" width="1000" height="1000" fill="white"/>
+          <g id="holes" fill="black"></g>
+        </mask>
+      </defs>
+      <g id="edges" pointer-events="none"></g>
       <g id="cells"></g>
+      <circle r="432" fill="var(--mask)" mask="url(#windows)" pointer-events="none"/>
       <g id="domLayer" pointer-events="none"></g>
       <g id="hub">
         <circle r="90" fill="var(--hub)"/>
@@ -229,7 +234,7 @@ svg text{font-family:inherit}
     <section class="card">
       <p class="eyebrow">Chords in key</p>
       <div class="chords" id="chords"></div>
-      <p class="note">Dimmed chords on the wheel are borrowed.</p>
+      <p class="note">Chords under the mask are borrowed.</p>
     </section>
 
     <section class="card" id="domCard" hidden>
@@ -431,16 +436,40 @@ for (let j = 0; j < 12; j++) {
   disk.appendChild(l);
 }
 
-// Mode window frame
-const framePath = (() => {
-  const a = 45, b = 15, r0 = 94, r1 = 330, r2 = 428;
-  return `M ${pt(r0, -a)} A ${r0} ${r0} 0 0 1 ${pt(r0, a)} L ${pt(r1, a)} A ${r1} ${r1} 0 0 0 ${pt(r1, b)} ` +
-         `L ${pt(r2, b)} A ${r2} ${r2} 0 0 0 ${pt(r2, -b)} L ${pt(r1, -b)} A ${r1} ${r1} 0 0 0 ${pt(r1, -a)} Z`;
-})();
-const frameFill = document.getElementById('frameFill');
-const frameStroke = document.getElementById('frameStroke');
-frameFill.innerHTML = `<path d="${framePath}" fill="var(--frame-fill)"/>`;
-frameStroke.innerHTML = `<path d="${framePath}" fill="none" stroke="var(--frame)" stroke-width="3.5" stroke-linejoin="round"/>`;
+// The mode mask: a dark cover with one window per chord of the scale. Its shape is fixed for each
+// scale family (in Major the windows join into the familiar frame); rotating it picks the mode.
+const RING = { M: [90, 220], m: [220, 330], d: [330, 432] };
+const RINGS = ['M', 'm', 'd'];
+const np = p => mod(p + 6, 12) - 6;
+function patternOf(fam) {
+  const sc = FAMILIES[fam].modes[0].sc;
+  return sc.map((r, i) => {
+    const th = sc[(i + 2) % 7] - r, fi = sc[(i + 4) % 7] - r;
+    const q = th === 4 ? (fi === 8 ? 'a' : 'M') : (fi === -6 ? 'd' : 'm');
+    return { ring: q === 'a' ? 'M' : q, p: np(r - OFF[q]) };
+  });
+}
+// Where the mask sits for a mode: the family's first note, in fifths from the tonic. For Major this equals k.
+const modeR = (m, fam = S.fam) => -FAMILIES[fam].parent[m.deg - 1];
+function wedge(r0, r1, a) {
+  return `M ${pt(r0, a - 15)} L ${pt(r1, a - 15)} A ${r1} ${r1} 0 0 1 ${pt(r1, a + 15)} L ${pt(r0, a + 15)} A ${r0} ${r0} 0 0 0 ${pt(r0, a - 15)} Z`;
+}
+const holesG = document.getElementById('holes');
+const edgesG = document.getElementById('edges');
+function buildMask() {
+  const pat = patternOf(S.fam), has = (ring, p) => pat.some(c => c.ring === ring && c.p === np(p));
+  holesG.innerHTML = pat.map(c => `<path d="${wedge(RING[c.ring][0], RING[c.ring][1], c.p * 30)}"/>`).join('');
+  // Outline only the edges that two neighbouring windows don't share.
+  let d = '';
+  for (const c of pat) {
+    const [r0, r1] = RING[c.ring], a = c.p * 30, i = RINGS.indexOf(c.ring);
+    if (!has(c.ring, c.p - 1)) d += `M ${pt(r0, a - 15)} L ${pt(r1, a - 15)} `;
+    if (!has(c.ring, c.p + 1)) d += `M ${pt(r0, a + 15)} L ${pt(r1, a + 15)} `;
+    if (i === 0 || !has(RINGS[i - 1], c.p)) d += `M ${pt(r0, a - 15)} A ${r0} ${r0} 0 0 1 ${pt(r0, a + 15)} `;
+    if (i === 2 || !has(RINGS[i + 1], c.p)) d += `M ${pt(r1, a - 15)} A ${r1} ${r1} 0 0 1 ${pt(r1, a + 15)} `;
+  }
+  edgesG.innerHTML = `<path class="window-edge" d="${d}"/>`;
+}
 
 // Mode labels on the rim (fixed)
 const labelsG = document.getElementById('modeLabels');
@@ -448,7 +477,7 @@ const rimText = document.createElementNS(SVGNS, 'g');
 labelsG.appendChild(rimText);
 function buildRim() {
   rimText.innerHTML = FAMILIES[S.fam].modes.map(m => {
-    const a = m.k * 30, span = 42;
+    const a = modeR(m) * 30, span = 42;
     const id = 'mp' + (m.k + 5);
     const bottom = Math.abs(a) > 100;
     const d = bottom
@@ -458,9 +487,7 @@ function buildRim() {
     return `<path id="${id}" d="${d}" fill="none"/>` +
       `<text class="mode-label" data-k="${m.k}" style="font-size:${fs}px"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${m.short}</textPath></text>`;
   }).join('');
-  const major = S.fam === 'major';
-  frameFill.style.display = major ? '' : 'none';
-  frameStroke.style.display = major ? '' : 'none';
+  buildMask();
 }
 buildRim();
 for (let i = 0; i < 12; i++) {
@@ -506,14 +533,14 @@ function dotsSVG(notes, y) {
 
 // ---- Rotation state ----
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const disp = { disk: -S.t * 30, win: S.k * 30 };
+const disp = { disk: -S.t * 30, win: modeR(curMode()) * 30 };
 const targ = { disk: disp.disk, win: disp.win };
 let drag = null, raf = 0;
 
 function applyTransforms() {
   disk.setAttribute('transform', `rotate(${disp.disk})`);
-  frameFill.setAttribute('transform', `rotate(${disp.win})`);
-  frameStroke.setAttribute('transform', `rotate(${disp.win})`);
+  holesG.setAttribute('transform', `rotate(${disp.win})`);
+  edgesG.setAttribute('transform', `rotate(${disp.win})`);
   for (const c of cells) {
     const [x, y] = P(MID[c.q], c.j * 30 + disp.disk);
     c.g.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
@@ -545,11 +572,12 @@ function setFamily(fam) {
   const pick = fam === 'major'
     ? FAMILIES.major.modes.find(m => m.name === (q === 'm' ? 'Aeolian' : q === 'd' ? 'Locrian' : 'Ionian'))
     : FAMILIES[fam].modes[0];
-  S.fam = fam; S.k = pick.k; targ.win = disp.win = S.k * 30;
+  S.fam = fam; S.k = pick.k; targ.win = disp.win = modeR(pick) * 30;
   buildRim(); save(); render(); kick();
 }
 function setMode(k) {
-  S.k = clamp(k, -5, 1); targ.win = S.k * 30;
+  S.k = clamp(k, -5, 1);
+  targ.win = targ.win + norm(modeR(curMode()) * 30 - targ.win);
   save(); render(); kick();
 }
 
@@ -573,8 +601,7 @@ function render() {
     const ch = chord(d, q);
     c.chord = ch;
     c.g.classList.toggle('out', !ch.inKey);
-    const mark = ch.inKey && S.fam !== 'major' ? `<circle class="keymark" cy="1" r="34"/>` : '';
-    c.g.innerHTML = mark + `<text class="num" y="-35" text-anchor="middle" font-size="21">${ch.num}</text>` +
+    c.g.innerHTML = `<text class="num" y="-35" text-anchor="middle" font-size="21">${ch.num}</text>` +
       `<g transform="translate(0 1)">${badgeSVG(ch, 24)}</g>` + dotsSVG(ch.notes, 42);
   }
   $('hubT').textContent = tonic;
@@ -1052,6 +1079,8 @@ function toSVG(e) {
   return { x: p.x, y: p.y, r: Math.hypot(p.x, p.y), a: Math.atan2(p.x, -p.y) * 180 / Math.PI };
 }
 const norm = a => mod(a + 180, 360) - 180;
+const nearestMode = ang => FAMILIES[S.fam].modes.reduce((best, m) =>
+  Math.abs(norm(modeR(m) * 30 - ang)) < Math.abs(norm(modeR(best) * 30 - ang)) ? m : best);
 svg.addEventListener('pointerdown', e => {
   const p = toSVG(e);
   if (p.r > 500) return;
@@ -1071,9 +1100,9 @@ svg.addEventListener('pointermove', e => {
     const t = mod(Math.round(-disp.disk / 30), 12);
     if (t !== S.t) { S.t = t; render(); }
   } else {
-    disp.win = clamp(drag.start + drag.total, -165, 45);
-    const k = clamp(Math.round(disp.win / 30), -5, 1);
-    if (k !== S.k) { S.k = k; render(); }
+    disp.win = drag.start + drag.total;
+    const m = nearestMode(disp.win);
+    if (m.k !== S.k) { S.k = m.k; render(); }
   }
   applyTransforms();
 });
@@ -1083,8 +1112,8 @@ function endDrag(e) {
   if (!d.moved && e.type === 'pointerup') {
     const { r, a } = d.p;
     if (d.zone === 'rim') {
-      const k = Math.round(norm(a) / 30);
-      if (k >= -5 && k <= 1) setMode(k);
+      const m = nearestMode(a);
+      if (Math.abs(norm(modeR(m) * 30 - a)) <= 20) setMode(m.k);
     } else if (d.zone === 'hub') {
       playChord(chord(0, tonicQ()));
     } else {
@@ -1095,7 +1124,7 @@ function endDrag(e) {
     }
   } else {
     targ.disk = Math.round(disp.disk / 30) * 30;
-    targ.win = S.k * 30;
+    targ.win = disp.win + norm(modeR(curMode()) * 30 - disp.win);
     save();
   }
   kick();
