@@ -77,6 +77,8 @@ header.top p{margin:0;color:var(--muted)}
 .cell .pop{transform-box:fill-box;transform-origin:center}
 .cell.hit .pop{animation:pop .45s ease-out}
 .cell.now .pop{animation:pulse .9s ease-in-out infinite alternate}
+.rad{transform:rotate(calc(var(--a,0) * 1deg))}
+.up{transform:rotate(calc(var(--a,0) * -1deg))}
 @keyframes pop{0%{transform:scale(1)}30%{transform:scale(1.18)}100%{transform:scale(1)}}
 @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.12)}}
 .mode-label{font-weight:700;font-size:30px;fill:var(--bezel-dim);cursor:pointer;transition:fill .2s}
@@ -519,16 +521,25 @@ function badgeSVG(ch, half) {
   const fs = len <= 1 ? 29 : len === 2 ? 24 : len === 3 ? 20 : 16;
   return `<g class="pop">${shape}<text class="bname ${fg === '#fff' ? 'lt' : 'dk'}" y="${fs * 0.36}" text-anchor="middle" font-size="${fs}" fill="${fg}">${ch.triad}</text></g>`;
 }
-function dotsSVG(notes, y) {
-  const size = 18, gap = 20, w = (notes.length - 1) * gap;
-  return notes.map((n, i) => {
-    const [bg, fg] = PC[n.pc], x = -w / 2 + i * gap;
-    const shape = shapeOf(n.pc) === 'sq'
-      ? `<rect x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" rx="2" fill="${bg}" stroke="var(--badge-line)" stroke-width="1"/>`
-      : `<circle cx="${x}" cy="${y}" r="${size / 2 + 0.5}" fill="${bg}" stroke="var(--badge-line)" stroke-width="1"/>`;
-    const fs = [...n.name].length > 1 ? 10 : 12;
-    return `<g class="dot">${shape}<text class="${fg === '#fff' ? 'lt' : 'dk'}" x="${x}" y="${y + fs * 0.36}" text-anchor="middle" font-size="${fs}" fill="${fg}">${n.name}</text></g>`;
+// Chords on the wheel: the layout follows the circle (notes on the side away from the centre,
+// numeral toward it) while every label is turned back upright. --a is the cell's angle on the
+// wheel; --s flips the note order so it always reads left to right (or top to bottom).
+function dotUp(n, size) {
+  const [bg, fg] = PC[n.pc], h = size / 2, fs = ([...n.name].length > 1 ? 10 : 12) * size / 18;
+  const shape = shapeOf(n.pc) === 'sq'
+    ? `<rect x="${-h}" y="${-h}" width="${size}" height="${size}" rx="2" fill="${bg}" stroke="var(--badge-line)" stroke-width="1"/>`
+    : `<circle r="${h + 0.5}" fill="${bg}" stroke="var(--badge-line)" stroke-width="1"/>`;
+  return `<g class="dot">${shape}<text class="${fg === '#fff' ? 'lt' : 'dk'}" y="${fs * 0.36}" text-anchor="middle" font-size="${fs}" fill="${fg}">${n.name}</text></g>`;
+}
+const NOTE_OUT = 37, NUM_IN = 46;
+function cellMarkup(ch) {
+  const size = 16, gap = 18, w = (ch.notes.length - 1) * gap;
+  const dots = ch.notes.map((n, i) => {
+    const x = -w / 2 + i * gap;
+    return `<g style="transform:translate(calc(var(--s,1) * ${x}px), -${NOTE_OUT}px)"><g class="up">${dotUp(n, size)}</g></g>`;
   }).join('');
+  return `<g class="rad">${dots}<g class="up">${badgeSVG(ch, 22)}</g>` +
+    `<g style="transform:translate(0px, ${NUM_IN}px)"><g class="up"><text class="num" y="7" text-anchor="middle" font-size="19">${ch.num}</text></g></g></g>`;
 }
 
 // ---- Rotation state ----
@@ -542,8 +553,12 @@ function applyTransforms() {
   holesG.setAttribute('transform', `rotate(${disp.win})`);
   edgesG.setAttribute('transform', `rotate(${disp.win})`);
   for (const c of cells) {
-    const [x, y] = P(MID[c.q], c.j * 30 + disp.disk);
+    const ang = c.j * 30 + disp.disk;
+    const [x, y] = P(MID[c.q], ang);
+    const cs = Math.cos(ang * Math.PI / 180), sn = Math.sin(ang * Math.PI / 180);
     c.g.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+    c.g.style.setProperty('--a', ang.toFixed(2));
+    c.g.style.setProperty('--s', cs > 0.01 ? 1 : cs < -0.01 ? -1 : (sn > 0 ? 1 : -1));
   }
   positionDom();
 }
@@ -601,8 +616,7 @@ function render() {
     const ch = chord(d, q);
     c.chord = ch;
     c.g.classList.toggle('out', !ch.inKey);
-    c.g.innerHTML = `<text class="num" y="-35" text-anchor="middle" font-size="21">${ch.num}</text>` +
-      `<g transform="translate(0 1)">${badgeSVG(ch, 24)}</g>` + dotsSVG(ch.notes, 42);
+    c.g.innerHTML = cellMarkup(ch);
   }
   $('hubT').textContent = tonic;
   $('hubM').textContent = mode.short;
@@ -994,12 +1008,15 @@ function positionDom() {
   const xy = domGeom.map(g => g && P(MID[g.q], g.j * 30 + disp.disk));
   const set = (id, attrs) => { const el = document.getElementById(id); if (el) for (const k in attrs) el.setAttribute(k, attrs[k]); };
   xy.forEach((c, i) => c && set('dr' + i, { cx: c[0].toFixed(1), cy: (c[1] + 1).toFixed(1) }));
-  const pillAt = (id, c) => set(id, { transform: `translate(${c[0].toFixed(1)} ${(c[1] - 36).toFixed(1)})` });
-  pillAt('dl1', xy[1]);
+  const pillAt = (id, i) => {
+    const g = domGeom[i], [x, y] = P(MID[g.q] - NUM_IN, g.j * 30 + disp.disk);
+    set(id, { transform: `translate(${x.toFixed(1)} ${y.toFixed(1)})` });
+  };
+  pillAt('dl1', 1);
   const a1 = arrowPath(xy[1], xy[0]);
   set('da1', { d: a1 }); set('dh1', { d: a1 });
   if (xy[2]) {
-    pillAt('dl0', xy[0]);
+    pillAt('dl0', 0);
     const a2 = arrowPath(xy[0], xy[2]);
     set('da2', { d: a2 }); set('dh2', { d: a2 });
   }
