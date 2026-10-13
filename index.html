@@ -542,9 +542,10 @@ function dotUp(n, size) {
 }
 const NOTE_OUT = 37, NUM_IN = 46;
 // What a chord cell shows never depends on the key: one fixed spelling per spot on the disc
-// (the common name; black keys get both names) and the three notes of the triad.
+// (the common name; black keys get both names). With Sevenths on, every chord gets the same 7th
+// whatever the key, like the printed wheel: majors 7, minors m7, diminished ø7.
 const BLACK = new Set([1, 3, 6, 8, 10]);
-function wheelChord(F, q) {
+function wheelChord(F, q, sev) {
   // Pick the common name for each chord type: majors D♭…F♯, minors B♭m…D♯m, diminished F°…A♯°.
   const lo = { M: -5, a: -5, m: -2, d: -1 }[q];
   F = lo + mod(F - lo, 12);
@@ -552,7 +553,7 @@ function wheelChord(F, q) {
   return {
     rootPc: pc, triad: noteName(F) + sfx,
     alt: BLACK.has(pc) ? noteName(F > 0 ? F - 12 : F + 12) + sfx : '',
-    notes: TRIAD[q].map(x => ({ name: noteName(F + x), pc: pcOf(F + x) })),
+    notes: TRIAD[q].concat(sev === undefined ? [] : [sev]).map(x => ({ name: noteName(F + x), pc: pcOf(F + x) })),
   };
 }
 function cellMarkup(ch) {
@@ -636,7 +637,7 @@ function render() {
     const ch = chord(d, q);
     c.chord = ch;
     c.g.classList.toggle('out', !ch.inKey);
-    c.g.innerHTML = cellMarkup(wheelChord(c.j + OFF[q], q));
+    c.g.innerHTML = cellMarkup(wheelChord(c.j + OFF[q], q, S.sev ? -2 : undefined));
   }
   // Roman numerals belong to the spot, not the chord: the tonic is always at the top, so they never move.
   let nums = '';
